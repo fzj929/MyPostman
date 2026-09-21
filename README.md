@@ -82,3 +82,7 @@ Windows 服务名为 `MyPostman`，程序发布在 `%ProgramFiles%\MyPostman`，
 认证值及历史快照以明文保存在本机 SQLite 工作区及导出的 JSON 中。请妥善保管这些文件；不要将本应用直接作为公网服务部署。
 
 测试时可通过环境变量 `MyPostman__ListenUrl` 和 `MyPostman__DataDirectory` 指定独立端口与数据目录，避免更改已有工作区。
+
+## 许可证
+
+本项目采用 [MIT 许可证](LICENSE)。
