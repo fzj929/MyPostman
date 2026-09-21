@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/node_modules/
+.npm-cache/
+.nuget-packages/
+.local-appdata/
+.test-data/
+MyPostman.Api/wwwroot/
+MyPostman.Api/App_Data/
+*.user

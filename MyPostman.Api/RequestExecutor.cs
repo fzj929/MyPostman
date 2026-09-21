@@ -1,0 +1,182 @@
+using System.Diagnostics;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.RegularExpressions;
+
+namespace MyPostman.Api;
+
+public sealed class RequestExecutor(IHttpClientFactory factory)
+{
+    private static readonly Regex VariablePattern = new(@"\{\{\s*([^{}]+?)\s*\}\}", RegexOptions.Compiled);
+    private const int MaxResponseBytes = 2 * 1024 * 1024;
+
+    public static string SafeDisplayUrl(string raw)
+    {
+        var cut = raw.IndexOf('?');
+        return cut < 0 ? raw : raw[..cut];
+    }
+
+    public async Task<ExecuteResult> ExecuteAsync(ExecuteInput input, CancellationToken cancellationToken)
+    {
+        var overall = Stopwatch.StartNew();
+        string Expand(string value) => VariablePattern.Replace(value ?? "", match =>
+            input.Variables.TryGetValue(match.Groups[1].Value, out var replacement) ? replacement : match.Value);
+
+        var spec = input.Request;
+        var method = (spec.Method ?? "GET").ToUpperInvariant();
+        if (!new[] { "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS" }.Contains(method))
+            throw new ArgumentException("不支持的 HTTP 方法。");
+
+        var url = Expand(spec.Url).Trim();
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
+            throw new ArgumentException("请输入有效的 HTTP 或 HTTPS 地址。");
+
+        var query = spec.Params.Where(x => x.Enabled && !string.IsNullOrWhiteSpace(x.Key))
+            .Select(x => (Key: Expand(x.Key), Value: Expand(x.Value))).ToList();
+        var auth = input.EffectiveAuth;
+        if (auth.Type == "apiKey" && auth.In == "query" && !string.IsNullOrWhiteSpace(auth.Key))
+            query.Add((Expand(auth.Key), Expand(auth.Value)));
+        if (query.Count > 0)
+        {
+            var builder = new UriBuilder(uri);
+            var extra = string.Join("&", query.Select(x => $"{Uri.EscapeDataString(x.Key)}={Uri.EscapeDataString(x.Value)}"));
+            builder.Query = string.IsNullOrEmpty(builder.Query) ? extra : builder.Query.TrimStart('?') + "&" + extra;
+            uri = builder.Uri;
+        }
+
+        using var request = new HttpRequestMessage(new HttpMethod(method), uri);
+        request.Content = BuildContent(spec, Expand);
+        foreach (var row in spec.Headers.Where(x => x.Enabled && !string.IsNullOrWhiteSpace(x.Key)))
+        {
+            var key = Expand(row.Key).Trim();
+            var value = Expand(row.Value);
+            if (key.Equals("Authorization", StringComparison.OrdinalIgnoreCase) && auth.Type != "none") continue;
+            if (!request.Headers.TryAddWithoutValidation(key, value))
+            {
+                if (request.Content is null) request.Content = new ByteArrayContent([]);
+                request.Content.Headers.Remove(key);
+                if (!request.Content.Headers.TryAddWithoutValidation(key, value))
+                    throw new ArgumentException($"无效的请求头：{key}");
+            }
+        }
+        ApplyAuth(request, auth, Expand);
+        var cookies = (spec.Cookies ?? []).Where(x => x.Enabled && !string.IsNullOrWhiteSpace(x.Key))
+            .Select(x => $"{Expand(x.Key)}={Expand(x.Value)}").ToList();
+        if (cookies.Count > 0)
+        {
+            var existing = request.Headers.TryGetValues("Cookie", out var current) ? string.Join("; ", current) : "";
+            request.Headers.Remove("Cookie");
+            if (!request.Headers.TryAddWithoutValidation("Cookie", string.Join("; ", new[] { existing }.Where(x => x.Length > 0).Concat(cookies))))
+                throw new ArgumentException("Cookie 设置无效。");
+        }
+        if (!request.Headers.Contains("Accept")) request.Headers.TryAddWithoutValidation("Accept", "*/*");
+        if (!request.Headers.Contains("User-Agent")) request.Headers.TryAddWithoutValidation("User-Agent", "MyPostman/1.0");
+        if (!request.Headers.Contains("Accept-Encoding")) request.Headers.TryAddWithoutValidation("Accept-Encoding", "gzip, deflate, br");
+        var prepareMs = overall.ElapsedMilliseconds;
+        var contentHeaders = request.Content is null
+            ? Enumerable.Empty<KeyValuePair<string, IEnumerable<string>>>()
+            : request.Content.Headers.AsEnumerable();
+        var sentHeaders = request.Headers.Concat(contentHeaders)
+            .ToDictionary(x => x.Key, x => x.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase) ||
+                x.Key.Equals("Cookie", StringComparison.OrdinalIgnoreCase) || x.Key.Contains("key", StringComparison.OrdinalIgnoreCase)
+                ? "••••••" : string.Join(", ", x.Value), StringComparer.OrdinalIgnoreCase);
+        var bodyPreview = spec.BodyType is "json" or "text" ? Expand(spec.Body) : spec.BodyType is "form" or "multipart"
+            ? string.Join("&", spec.Form.Where(x => x.Enabled && !string.IsNullOrWhiteSpace(x.Key)).Select(x => $"{Expand(x.Key)}={Expand(x.Value)}"))
+            : "";
+        if (bodyPreview.Length > 4096) bodyPreview = bodyPreview[..4096] + "…";
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(60));
+        var client = factory.CreateClient("requests");
+        var sendClock = Stopwatch.StartNew();
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+        sendClock.Stop();
+        var downloadClock = Stopwatch.StartNew();
+        await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
+        using var memory = new MemoryStream();
+        var buffer = new byte[16384];
+        int count;
+        while ((count = await stream.ReadAsync(buffer, timeout.Token)) > 0)
+        {
+            var remaining = MaxResponseBytes + 1 - (int)memory.Length;
+            if (remaining <= 0) break;
+            memory.Write(buffer, 0, Math.Min(count, remaining));
+            if (memory.Length > MaxResponseBytes) break;
+        }
+        downloadClock.Stop();
+        overall.Stop();
+        var bytes = memory.ToArray();
+        var truncated = bytes.Length > MaxResponseBytes;
+        if (truncated) Array.Resize(ref bytes, MaxResponseBytes);
+        var charset = response.Content.Headers.ContentType?.CharSet;
+        Encoding encoding;
+        try { encoding = string.IsNullOrWhiteSpace(charset) ? Encoding.UTF8 : Encoding.GetEncoding(charset.Trim('"')); }
+        catch (ArgumentException) { encoding = Encoding.UTF8; }
+        var headers = response.Headers.Concat(response.Content.Headers)
+            .ToDictionary(x => x.Key, x => string.Join(", ", x.Value), StringComparer.OrdinalIgnoreCase);
+        var setCookies = response.Headers.TryGetValues("Set-Cookie", out var rawCookies) ? rawCookies : [];
+        var responseCookies = setCookies.Select(raw =>
+        {
+            var parts = raw.Split(';', 2);
+            var separator = parts[0].IndexOf('=');
+            return new CookieInfo(separator < 0 ? parts[0] : parts[0][..separator],
+                separator < 0 ? "" : parts[0][(separator + 1)..], parts.Length > 1 ? parts[1].Trim() : "", raw);
+        }).ToList();
+        var trace = new RequestTrace(uri.ToString(), method, $"HTTP/{response.Version}", sentHeaders, bodyPreview,
+        [
+            new("准备请求", prepareMs, "变量替换、参数、授权和请求头"),
+            new("等待响应头", sendClock.ElapsedMilliseconds, "包含连接建立、TLS 握手、上传及服务端处理；连接复用时部分步骤不会发生"),
+            new("读取响应体", downloadClock.ElapsedMilliseconds, $"读取 {bytes.Length:N0} 字节")
+        ]);
+        return new ExecuteResult((int)response.StatusCode, response.ReasonPhrase ?? "", overall.ElapsedMilliseconds,
+            response.Content.Headers.ContentLength ?? bytes.LongLength, response.Content.Headers.ContentType?.MediaType ?? "",
+            headers, encoding.GetString(bytes), truncated, responseCookies, trace);
+    }
+
+    private static HttpContent? BuildContent(RequestItem spec, Func<string, string> expand)
+    {
+        if (spec.BodyType == "none" || spec.Method is "GET" or "HEAD") return null;
+        if (spec.BodyType == "form")
+            return new FormUrlEncodedContent(spec.Form.Where(x => x.Enabled && !string.IsNullOrWhiteSpace(x.Key))
+                .Select(x => new KeyValuePair<string, string>(expand(x.Key), expand(x.Value))));
+        if (spec.BodyType == "multipart")
+        {
+            var multipart = new MultipartFormDataContent();
+            foreach (var row in spec.Form.Where(x => x.Enabled && !string.IsNullOrWhiteSpace(x.Key)))
+                multipart.Add(new StringContent(expand(row.Value)), expand(row.Key));
+            foreach (var file in spec.Files ?? [])
+            {
+                byte[] bytes;
+                try { bytes = Convert.FromBase64String(file.Base64); }
+                catch (FormatException) { throw new ArgumentException($"文件内容无效：{file.FileName}"); }
+                if (bytes.Length > 10 * 1024 * 1024) throw new ArgumentException("单个文件不能超过 10 MB。");
+                var content = new ByteArrayContent(bytes);
+                content.Headers.ContentType = new MediaTypeHeaderValue(string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType);
+                multipart.Add(content, expand(file.Key), file.FileName);
+            }
+            return multipart;
+        }
+        var mediaType = spec.BodyType == "json" ? "application/json" : "text/plain";
+        return new StringContent(expand(spec.Body), Encoding.UTF8, mediaType);
+    }
+
+    private static void ApplyAuth(HttpRequestMessage request, AuthSettings auth, Func<string, string> expand)
+    {
+        switch (auth.Type)
+        {
+            case "basic":
+                var raw = $"{expand(auth.Username)}:{expand(auth.Password)}";
+                request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(raw)));
+                break;
+            case "bearer":
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", expand(auth.Token));
+                break;
+            case "apiKey" when auth.In == "header" && !string.IsNullOrWhiteSpace(auth.Key):
+                var key = expand(auth.Key);
+                request.Headers.Remove(key);
+                if (!request.Headers.TryAddWithoutValidation(key, expand(auth.Value)))
+                    throw new ArgumentException("API Key 的请求头名称无效。");
+                break;
+        }
+    }
+}
