@@ -1,7 +1,11 @@
 param(
     [Parameter(Position = 0)]
     [ValidateRange(1, 65535)]
-    [int]$Port = 5078
+    [int]$Port = 5078,
+
+    [Parameter(Position = 1)]
+    [ValidateSet('127.0.0.1', '0.0.0.0', 'localhost')]
+    [string]$ListenAddress = '127.0.0.1'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -9,7 +13,7 @@ $serviceName = 'MyPostman'
 $publishDirectory = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $executable = Join-Path $publishDirectory 'MyPostman.Api.exe'
 $dataDirectory = Join-Path $publishDirectory 'App_Data'
-$listenUrl = "http://127.0.0.1:$Port"
+$listenUrl = "http://${ListenAddress}:$Port"
 
 function Invoke-CheckedCommand {
     param([string]$File, [string[]]$Arguments)

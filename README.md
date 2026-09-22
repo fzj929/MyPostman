@@ -42,13 +42,17 @@ dotnet run --project MyPostman.Api
 # Windows：管理员 PowerShell
 .\scripts\install-service.ps1
 .\scripts\install-service.ps1 5080
+.\scripts\install-service.ps1 5080 0.0.0.0
 ```
 
 ```bash
 # Linux
 sudo bash scripts/install-service.sh
 sudo bash scripts/install-service.sh 5080
+sudo bash scripts/install-service.sh 5080 0.0.0.0
 ```
+
+第二个参数为监听地址。使用 `0.0.0.0` 可接受来自本机所有 IPv4 网络接口的连接；省略时只监听 `127.0.0.1`。重新执行脚本会更新并重启已经安装的服务，不会重新编译程序。
 
 程序直接从当前发布目录运行，SQLite 数据保存在该目录的 `App_Data` 中。安装服务后不要移动或删除发布目录。Windows 服务以 LocalService 身份运行；Linux 服务以 `mypostman` 用户运行。框架依赖发布需要目标机器安装 .NET 8 ASP.NET Core Runtime，Linux 还需要 systemd。
 

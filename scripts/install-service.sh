@@ -2,8 +2,13 @@
 set -Eeuo pipefail
 
 port="${1:-5078}"
+listen_address="${2:-127.0.0.1}"
 [[ "$port" =~ ^[0-9]+$ ]] && (( 10#$port >= 1 && 10#$port <= 65535 )) || {
-  echo "Usage: $0 [port] (port must be between 1 and 65535)" >&2
+  echo "Usage: $0 [port] [listen-address]" >&2
+  exit 2
+}
+[[ "$listen_address" == '127.0.0.1' || "$listen_address" == '0.0.0.0' || "$listen_address" == 'localhost' ]] || {
+  echo 'Listen address must be 127.0.0.1, 0.0.0.0, or localhost.' >&2
   exit 2
 }
 
@@ -19,7 +24,7 @@ data_directory="$publish_directory/App_Data"
 service_name='mypostman.service'
 service_user='mypostman'
 unit_file="/etc/systemd/system/$service_name"
-listen_url="http://127.0.0.1:$port"
+listen_url="http://$listen_address:$port"
 
 [[ -f "$application" ]] || {
   echo "Published application not found: $application. Keep this script in the scripts directory of the published application." >&2
