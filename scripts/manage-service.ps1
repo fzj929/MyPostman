@@ -25,6 +25,21 @@ function Invoke-CheckedCommand {
     }
 }
 
+function Build-WebApplication {
+    $packageJson = Join-Path $webProject 'package.json'
+    $packageLock = Join-Path $webProject 'package-lock.json'
+    if (-not (Test-Path -LiteralPath $packageJson -PathType Leaf)) {
+        throw "Frontend project not found: $packageJson"
+    }
+    if (Test-Path -LiteralPath $packageLock -PathType Leaf) {
+        Invoke-CheckedCommand 'npm.cmd' @('--prefix', $webProject, 'ci')
+    } else {
+        Write-Warning "package-lock.json was not found. Falling back to npm install: $webProject"
+        Invoke-CheckedCommand 'npm.cmd' @('--prefix', $webProject, 'install')
+    }
+    Invoke-CheckedCommand 'npm.cmd' @('--prefix', $webProject, 'run', 'build')
+}
+
 function Assert-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
@@ -48,8 +63,7 @@ function Stop-InstalledService {
 switch ($Action) {
     'install' {
         Assert-Administrator
-        Invoke-CheckedCommand 'npm.cmd' @('ci', '--prefix', $webProject)
-        Invoke-CheckedCommand 'npm.cmd' @('run', 'build', '--prefix', $webProject)
+        Build-WebApplication
         Stop-InstalledService
         New-Item -ItemType Directory -Path $installDirectory, $dataDirectory -Force | Out-Null
         Invoke-CheckedCommand 'dotnet' @('publish', $apiProject, '-c', 'Release', '-o', $installDirectory)
@@ -103,8 +117,7 @@ switch ($Action) {
         else { Write-Host "Service $serviceName is not installed." }
     }
     'run' {
-        Invoke-CheckedCommand 'npm.cmd' @('ci', '--prefix', $webProject)
-        Invoke-CheckedCommand 'npm.cmd' @('run', 'build', '--prefix', $webProject)
+        Build-WebApplication
         $env:MyPostman__ListenUrl = $listenUrl
         Write-Host "Running MyPostman in the foreground at $listenUrl (Ctrl+C to stop)."
         Invoke-CheckedCommand 'dotnet' @('run', '--project', $apiProject, '--no-launch-profile')

@@ -34,9 +34,9 @@ dotnet run --project MyPostman.Api
 
 ## 系统服务
 
-安装脚本会先用 Node.js 构建 Vue 页面，再通过 .NET 8 SDK 发布 API，最后注册并启动服务。需要预先安装 .NET 8 SDK、Node.js 20.19+ 和 npm；Linux 还需要 systemd，以及系统级可访问的 `dotnet` 命令。以下命令从仓库根目录执行。默认监听 `http://127.0.0.1:5078`，可在 `install` 或 `run` 后面传入其他端口，例如 `install 5080`。切换端口时重新运行 `install`。
+### 从发布目录直接安装
 
-只需安装并启动服务时，可使用独立安装脚本。端口参数可省略，默认使用 `5078`：
+发布目录中的独立安装脚本只注册并启动服务，不执行 npm、前端编译或 `dotnet publish`。请保持 `scripts` 与 `MyPostman.Api.exe`、`MyPostman.Api.dll` 位于截图所示的相对位置。端口参数可省略，默认使用 `5078`：
 
 ```powershell
 # Windows：管理员 PowerShell
@@ -49,6 +49,14 @@ dotnet run --project MyPostman.Api
 sudo bash scripts/install-service.sh
 sudo bash scripts/install-service.sh 5080
 ```
+
+程序直接从当前发布目录运行，SQLite 数据保存在该目录的 `App_Data` 中。安装服务后不要移动或删除发布目录。Windows 服务以 LocalService 身份运行；Linux 服务以 `mypostman` 用户运行。框架依赖发布需要目标机器安装 .NET 8 ASP.NET Core Runtime，Linux 还需要 systemd。
+
+### 从源码构建并管理服务
+
+`manage-service` 脚本的 `install` 操作适用于完整源码目录：它会安装前端依赖、构建 Vue 页面、执行 `dotnet publish`，再注册服务。此方式需要 .NET 8 SDK、Node.js 20.19+ 和 npm。存在 `MyPostman.Web/package-lock.json` 时使用 `npm ci`，锁文件缺失时自动改用 `npm install`。
+
+默认监听 `http://127.0.0.1:5078`，可在 `install` 或 `run` 后传入其他端口，例如 `install 5080`。切换端口时重新安装服务。
 
 Windows：在**管理员 PowerShell** 中安装、卸载或控制服务。
 
@@ -82,7 +90,7 @@ sudo bash scripts/manage-service.sh uninstall
 bash scripts/manage-service.sh run
 ```
 
-Windows 服务名为 `MyPostman`，程序发布在 `%ProgramFiles%\MyPostman`，SQLite 数据位于 `%ProgramData%\MyPostman`，服务以 LocalService 身份运行。Linux 服务名为 `mypostman.service`，程序发布在 `/opt/mypostman`，SQLite 数据位于 `/var/lib/mypostman`，服务以 `mypostman` 用户运行。再次执行 `install` 可更新程序。`uninstall` 只移除服务注册，保留程序文件和工作区数据。
+通过源码管理脚本安装时，Windows 程序发布在 `%ProgramFiles%\MyPostman`、数据位于 `%ProgramData%\MyPostman`；Linux 程序发布在 `/opt/mypostman`、数据位于 `/var/lib/mypostman`。Windows 服务名为 `MyPostman`，Linux 服务名为 `mypostman.service`。再次执行安装可更新服务配置，`uninstall` 只移除服务注册并保留程序文件和工作区数据。
 
 ## 功能
 

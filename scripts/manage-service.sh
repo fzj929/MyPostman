@@ -29,8 +29,17 @@ require_root() {
 }
 
 build_app() {
-  npm ci --prefix "$web_project"
-  npm run build --prefix "$web_project"
+  if [[ ! -f "$web_project/package.json" ]]; then
+    echo "Frontend project not found: $web_project/package.json" >&2
+    exit 1
+  fi
+  if [[ -f "$web_project/package-lock.json" ]]; then
+    npm --prefix "$web_project" ci
+  else
+    echo "Warning: package-lock.json was not found. Falling back to npm install: $web_project" >&2
+    npm --prefix "$web_project" install
+  fi
+  npm --prefix "$web_project" run build
 }
 
 publish_app() {
@@ -101,8 +110,7 @@ UNIT
     systemctl show "$service_name" --no-pager -p ActiveState -p SubState -p UnitFileState
     ;;
   run)
-    npm ci --prefix "$web_project"
-    npm run build --prefix "$web_project"
+    build_app
     export MyPostman__ListenUrl="$listen_url"
     echo "Running MyPostman in the foreground at $listen_url (Ctrl+C to stop)."
     dotnet run --project "$api_project" --no-launch-profile
