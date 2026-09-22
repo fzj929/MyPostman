@@ -49,7 +49,12 @@ Invoke-CheckedCommand 'icacls.exe' @($dataDirectory, '/grant', '*S-1-5-19:(OI)(C
 if (-not $service) {
     New-Service -Name $serviceName -DisplayName 'MyPostman API Workspace' -BinaryPathName "`"$executable`"" -StartupType Automatic | Out-Null
 }
-Invoke-CheckedCommand 'sc.exe' @('config', $serviceName, "binPath= `"$executable`"", 'start= auto', 'obj= NT AUTHORITY\LocalService', 'password= ')
+Invoke-CheckedCommand 'sc.exe' @(
+    'config', $serviceName,
+    'binPath=', "`"$executable`"",
+    'start=', 'auto',
+    'obj=', 'NT AUTHORITY\LocalService'
+)
 Invoke-CheckedCommand 'sc.exe' @('description', $serviceName, 'Local API request workspace')
 
 $registryPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName"

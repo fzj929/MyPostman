@@ -74,7 +74,12 @@ switch ($Action) {
         if (-not (Get-InstalledService)) {
             New-Service -Name $serviceName -DisplayName 'MyPostman API Workspace' -BinaryPathName "`"$executable`"" -StartupType Automatic | Out-Null
         }
-        Invoke-CheckedCommand 'sc.exe' @('config', $serviceName, "binPath= `"$executable`"", 'start= auto', 'obj= NT AUTHORITY\LocalService', 'password= ')
+        Invoke-CheckedCommand 'sc.exe' @(
+            'config', $serviceName,
+            'binPath=', "`"$executable`"",
+            'start=', 'auto',
+            'obj=', 'NT AUTHORITY\LocalService'
+        )
         $registryPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName"
         New-ItemProperty -Path $registryPath -Name Environment -PropertyType MultiString -Value @(
             "MyPostman__DataDirectory=$dataDirectory",
