@@ -36,6 +36,20 @@ dotnet run --project MyPostman.Api
 
 安装脚本会先用 Node.js 构建 Vue 页面，再通过 .NET 8 SDK 发布 API，最后注册并启动服务。需要预先安装 .NET 8 SDK、Node.js 20.19+ 和 npm；Linux 还需要 systemd，以及系统级可访问的 `dotnet` 命令。以下命令从仓库根目录执行。默认监听 `http://127.0.0.1:5078`，可在 `install` 或 `run` 后面传入其他端口，例如 `install 5080`。切换端口时重新运行 `install`。
 
+只需安装并启动服务时，可使用独立安装脚本。端口参数可省略，默认使用 `5078`：
+
+```powershell
+# Windows：管理员 PowerShell
+.\scripts\install-service.ps1
+.\scripts\install-service.ps1 5080
+```
+
+```bash
+# Linux
+sudo bash scripts/install-service.sh
+sudo bash scripts/install-service.sh 5080
+```
+
 Windows：在**管理员 PowerShell** 中安装、卸载或控制服务。
 
 ```powershell
