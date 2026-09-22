@@ -13,6 +13,12 @@ builder.Services.AddHttpClient("requests").ConfigurePrimaryHttpMessageHandler(()
     UseCookies = false,
     AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate | System.Net.DecompressionMethods.Brotli
 });
+builder.Services.AddHttpClient("insecure-requests").ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    UseCookies = false,
+    AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate | System.Net.DecompressionMethods.Brotli,
+    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+});
 builder.Services.AddSingleton<RequestExecutor>();
 
 var app = builder.Build();

@@ -34,6 +34,15 @@
 .composer { padding-top: 15px; }
 .section-label { margin-bottom: 12px; }
 .editor-tabs { margin-top: 12px; }
+.ssl-option { display: flex; align-items: center; gap: 8px; width: fit-content; margin: 8px 0 0 auto; color: #57606a; cursor: pointer; font-size: 11px; user-select: none; }
+.ssl-option > input { position: absolute; opacity: 0; pointer-events: none; }
+.ssl-checkbox { width: 16px; height: 16px; display: grid; place-items: center; flex: none; border: 1px solid #afb8c1; border-radius: 4px; background: #fff; color: transparent; font-size: 11px; font-weight: 700; transition: background .12s, border-color .12s, color .12s; }
+.ssl-option > span:nth-of-type(2) { display: flex; align-items: baseline; gap: 7px; }
+.ssl-option strong { color: #24292f; font-weight: 600; }
+.ssl-option small { color: #8c959f; }
+.ssl-option > input:focus-visible + .ssl-checkbox { outline: 3px solid #0969da55; outline-offset: 2px; }
+.ssl-option > input:checked + .ssl-checkbox { border-color: #bf8700; background: #bf8700; color: white; }
+.unsafe-badge { padding: 2px 6px; border: 1px solid #d4a72c66; border-radius: 20px; background: #fff8c5; color: #7d4e00; font: 500 9px 'DM Mono', monospace; }
 .editor-tabs button { padding-block: 9px; }
 .editor-content { padding-top: 15px; min-height: 190px; }
 .pane-intro { margin-bottom: 12px; }
@@ -78,6 +87,7 @@
   .category-picker { flex-wrap: wrap; }
   .category-picker span { display: none; }
   .request-title { width: min(260px, 48vw); }
+  .ssl-option small { display: none; }
   .response-tabs { gap: 2px; }
   .response-tabs button { padding-inline: 5px; }
   .content-type { display: none; }

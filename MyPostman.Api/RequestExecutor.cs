@@ -87,7 +87,7 @@ public sealed class RequestExecutor(IHttpClientFactory factory)
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(60));
-        var client = factory.CreateClient("requests");
+        var client = factory.CreateClient(spec.AllowInsecureSsl ? "insecure-requests" : "requests");
         var sendClock = Stopwatch.StartNew();
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
         sendClock.Stop();

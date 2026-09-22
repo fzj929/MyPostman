@@ -6,7 +6,8 @@ public sealed record RequestItem(
     string Id, string Name, string Method, string Url,
     List<KeyValueRow> Params, List<KeyValueRow> Headers,
     string BodyType, string Body, List<KeyValueRow> Form,
-    AuthSettings Auth, string FolderId = "", List<UploadFile>? Files = null, List<KeyValueRow>? Cookies = null);
+    AuthSettings Auth, string FolderId = "", List<UploadFile>? Files = null, List<KeyValueRow>? Cookies = null,
+    bool AllowInsecureSsl = false);
 public sealed record UploadFile(string Key, string FileName, string ContentType, string Base64);
 public sealed record FolderItem(string Id, string Name, AuthSettings Auth);
 public sealed record CollectionItem(string Id, string Name, AuthSettings Auth, List<FolderItem> Folders, List<RequestItem> Requests);

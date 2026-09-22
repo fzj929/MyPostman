@@ -106,6 +106,7 @@ function openRequest(collection: Collection, request: RequestItem) {
   selectedRequestId.value = request.id
   draft.value = copy(request)
   draft.value.cookies ??= [newRow()]
+  draft.value.allowInsecureSsl ??= false
   files.value = []
   replayVariables.value = null
   authScope.value = 'request'
@@ -183,6 +184,7 @@ function openHistory(item: History) {
   draft.value = item.request ? copy(item.request) : { ...newRequest(), method: item.method, url: item.url, name: '历史请求' }
   draft.value.id = uid()
   draft.value.cookies ??= [newRow()]
+  draft.value.allowInsecureSsl ??= false
   if (item.effectiveAuth) draft.value.auth = copy(item.effectiveAuth)
   replayVariables.value = item.variables ? copy(item.variables) : null
   files.value = []
@@ -394,6 +396,7 @@ onMounted(async () => {
         <section class="composer">
           <div class="section-label"><span class="section-index">01</span> REQUEST BUILDER <span class="section-line"></span><span class="muted">配置并发送 HTTP 请求</span></div>
           <div class="url-bar"><select v-model="draft.method" aria-label="HTTP 方法" :class="methodClass(draft.method)"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option>HEAD</option><option>OPTIONS</option></select><input v-model="draft.url" type="url" placeholder="https://api.example.com/v1/users" aria-label="请求 URL" @keydown.enter="sendRequest" /><button v-if="busy" class="send-button cancel" @click="cancelRequest">取消</button><button v-else class="send-button" :disabled="!draft.url.trim()" @click="sendRequest">发送请求 <span>↗</span></button></div>
+          <label class="ssl-option" :class="{ unsafe: draft.allowInsecureSsl }"><input v-model="draft.allowInsecureSsl" type="checkbox" /><span class="ssl-checkbox" aria-hidden="true">✓</span><span><strong>允许不安全的 SSL 连接</strong><small>用于自签名或证书不受信任的 HTTPS 服务</small></span><span v-if="draft.allowInsecureSsl" class="unsafe-badge">已跳过证书验证</span></label>
           <div class="editor-tabs"><button v-for="tab in (['params', 'auth', 'headers', 'cookies', 'body'] as const)" :key="tab" :class="{ active: activeTab === tab }" @click="activeTab = tab">{{ { params: 'Params', auth: 'Authorization', headers: 'Headers', cookies: 'Cookies', body: 'Body' }[tab] }}<span v-if="tab === 'auth' && effectiveAuth.type !== 'none'" class="tab-dot"></span></button></div>
 
           <div class="editor-content">

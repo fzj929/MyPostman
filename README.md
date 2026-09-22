@@ -73,6 +73,7 @@ Windows 服务名为 `MyPostman`，程序发布在 `%ProgramFiles%\MyPostman`，
 ## 功能
 
 - HTTP 请求编辑与发送，支持参数、请求头、请求 Cookie、JSON、文本、表单和 Multipart 文件。
+- 可按请求启用不安全 SSL 连接，用于访问自签名或证书不受信任的 HTTPS 服务；该选项会随请求及历史快照保存。
 - Basic Auth、Bearer Token、API Key；支持集合、文件夹、请求三级配置与继承。
 - 请求可选择集合及文件夹保存；历史记录保留发送时的请求参数、正文、Cookie、有效认证与环境变量快照（旧版历史只有地址）。
 - 响应单独显示 Set-Cookie；请求诊断显示最终 URL、请求头与正文预览，以及准备、等待响应头、读取响应体阶段耗时。等待响应头包含 DNS/TCP/TLS/服务端处理，无法精确拆分这些子阶段。
